@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'mouadmabchour21@gmail.com'
+      );
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- Validation Helpers ---
+    function isValidConversation(data) {
+      return data.keys().hasAll(['id', 'userId', 'status', 'lastMessageAt']) &&
+             data.keys().size() <= 8 &&
+             data.id is string &&
+             data.userId is string &&
+             data.status in ['active', 'closed', 'archived'] &&
+             data.lastMessageAt is timestamp;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'senderId', 'senderRole', 'text', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.id is string &&
+             data.senderId is string &&
+             data.senderRole in ['user', 'ai', 'admin'] &&
+             data.text is string && data.text.size() <= 5000 &&
+             data.createdAt is timestamp;
+    }
+
+    // --- Collections ---
+    
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow write: if isSignedIn() && (isOwner(userId) || isAdmin());
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /blogPosts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if isSignedIn() && isValidId(conversationId) && isValidConversation(request.resource.data) && isOwner(request.resource.data.userId);
+      allow update: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin()) && isValidConversation(request.resource.data);
+      
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (isOwner(get(/databases/$(database)/documents/conversations/$(conversationId)).data.userId) || isAdmin());
+        allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(request.resource.data) && (isOwner(request.resource.data.senderId) || isAdmin() || request.resource.data.senderRole == 'ai');
+      }
+    }
+
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if true; // Allow guests to create orders
+      allow update, delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

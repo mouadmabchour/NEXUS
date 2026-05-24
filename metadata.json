@@ -1,0 +1,8 @@
+{
+  "name": "NEXUS PRODUCTS",
+  "description": "NEXUS PRODUCTS | Modern Streetwear & Trending Products in Morocco. Découvrez les meilleurs produits tendance, streetwear et accessoires modernes au Maroc avec livraison rapide et paiement sécurisé.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
